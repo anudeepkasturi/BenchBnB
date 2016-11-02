@@ -9,6 +9,7 @@
 #  created_at      :datetime
 #  updated_at      :datetime
 #
+require 'bcrypt'
 
 class User < ActiveRecord::Base
   validates_presence_of :username, :password_digest
@@ -16,6 +17,7 @@ class User < ActiveRecord::Base
   validates :password, length: {minimum: 6, allow_nil: true}
 
   after_initialize :ensure_session_token
+  attr_reader :password
 
   def password=(password)
     @password = password
@@ -23,25 +25,23 @@ class User < ActiveRecord::Base
     password = ""
   end
 
-  def find_by_credentials(username, password)
+  def self.find_by_credentials(username, password)
     user = User.find_by_username(username)
-    return user if (user && user.password?(password))
+    return user if (user && user.is_password?(password))
   end
 
-  def ensure_session_token
-    self.session_token ||= SecureRandom.urlsafe_base64
+  def is_password?(password)
+    BCrypt::Password.new(self.password_digest).is_password?(password)
   end
 
-
+  def reset_session_token!
+    self.session_token = SecureRandom.urlsafe_base64
+    self.save
+    self.session_token
+  end
 
   private
-  def password? password
-    bc_obj = BCrypt::Password.new(self.password_digest)
-
-    if bc_obj == BCrypt::Password.create(password)
-      true
-    else
-      false
-    end
+  def ensure_session_token
+    self.session_token ||= SecureRandom.urlsafe_base64
   end
 end
